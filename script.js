@@ -1,5 +1,5 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbza7LnD4vOpMxLzW-_bkymLUavnLdoq6as8241Gvy6CEjM2He1iEDEcICIuBj1LpF9d/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLp7mCMxiW0QHIheCMoqdIk5WY7HIhJXFYMkcUA-KEASzuuw2Oj4saWaUeCmLECs67/exec';
 
 // --- DOM Elements ---
 const form = document.getElementById('issueForm');
@@ -73,7 +73,7 @@ function showStatus(message, isError = false) {
  * โหลดข้อมูล Issues ทั้งหมดมาแสดงในตาราง
  */
 async function loadIssues() {
-    issueTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center;">🔄 Loading issues...</td></tr>`;
+    issueTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center;">🔄 Loading issues...</td></tr>`;
     try {
         const response = await fetch(SCRIPT_URL);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
@@ -87,7 +87,7 @@ async function loadIssues() {
         issueTableBody.innerHTML = ''; 
 
         if (issues.length === 0) {
-            issueTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center;">No issues found. 🎉</td></tr>`;
+            issueTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center;">No issues found. 🎉</td></tr>`;
             return;
         }
 
@@ -121,6 +121,7 @@ async function loadIssues() {
                 <td>${imageHtml}</td>
                 <td>${issue.RequestBy || ''}</td>
                 <td>${issue.Title || ''}</td>
+                <td>${issue.Description || ''}</td>
                 <td><span class="priority-${issue.Priority}">${issue.Priority || ''}</span></td>
                 <td>${statusHtml}</td>
                 <td>${issue.Timestamp || ''}</td>
@@ -131,7 +132,7 @@ async function loadIssues() {
 
     } catch (error) {
         console.error("Error loading issues:", error);
-        issueTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Failed to load issues: ${error.message}</td></tr>`;
+        issueTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">Failed to load issues: ${error.message}</td></tr>`;
     }
 }
 
@@ -212,6 +213,9 @@ async function openEditModal(id) {
         const response = await fetch(`${SCRIPT_URL}?id=${id}`);
         if (!response.ok) throw new Error('Failed to fetch issue details.');
         const issue = await response.json();
+
+        // ✨ บรรทัดใหม่สำหรับ Debug: แสดงข้อมูลที่ได้รับใน Console
+        console.log("Fetched issue for edit:", issue);
 
         if (issue.result === 'error') throw new Error(issue.message);
 
