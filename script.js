@@ -1,5 +1,5 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLBZraNUt26TQwco-HXF5f9T9UBtmTIQiRJOmqWgCIVOAtvta7wJBKqcXhLQ848A_/exec'; 
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMxmfo8RYrg0rY3W33AaymHtsNazxj-kaSu0X1ZMHZlkwXgDeRivkVuLhNC6gZpeqP/exec'; 
 
 
 // --- DOM Elements ---
@@ -50,13 +50,24 @@ async function loadIssues() {
             const row = document.createElement('tr');
             
             // ส่วนแสดงผลรูปภาพ (เหมือนเดิม)
-            let imageHtml = 'No Image';
-            if (issue.ImageUrl) {
-                imageHtml = `<a href="${issue.ImageUrl}" target="_blank"><img src="${issue.ImageUrl}" alt="Issue Image" style="max-width: 100px; border-radius: 4px;"></a>`;
+            // ✨ ส่วนที่แก้ไขแล้ว
+            let imageHtml = '';
+
+            // 1. สร้าง HTML ของไอคอนเก็บไว้ในตัวแปร ทำให้โค้ดสะอาดขึ้น
+            const iconSpan = `<span style="font-size: 1.6em; display: block; text-align: center;">${issue.icon || '📄'}</span>`;
+
+            // 2. ตรวจสอบว่ามี URL รูปภาพหรือไม่
+            if (issue.ImageUrl && issue.ImageUrl.trim() !== '') {
+                // 3. ถ้ามี: สร้างแท็กลิงก์ (<a>) ครอบไอคอน
+                imageHtml = `<a href="${issue.ImageUrl}" target="_blank" title="คลิกเพื่อดูรูปภาพ">${iconSpan}</a>`;
+            } else {
+                // 4. ถ้าไม่มี: แสดงแค่ไอคอนอย่างเดียว (ไม่มีลิงก์)
+                imageHtml = iconSpan;
             }
 
             // --- ✨ ส่วนใหม่: สร้าง Dropdown สำหรับ Status ---
             const statusOptions = ['Open', 'In Progress', 'Closed'];
+
             let statusHtml = `<select class="status-dropdown" data-id="${issue.ID}">`;
             statusOptions.forEach(option => {
                 const isSelected = (option === issue.Status) ? 'selected' : '';
