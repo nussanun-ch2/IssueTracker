@@ -1,5 +1,5 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyf9AMDp_grZE4x0ILhVYkLvfSBlI7hay1s-vr0V3zGWTrinyTErqF2GTQcCBKgjGO3/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbza7LnD4vOpMxLzW-_bkymLUavnLdoq6as8241Gvy6CEjM2He1iEDEcICIuBj1LpF9d/exec';
 
 // --- DOM Elements ---
 const form = document.getElementById('issueForm');
@@ -13,6 +13,12 @@ const navView = document.getElementById('nav-view');
 const navAdd = document.getElementById('nav-add');
 const pageView = document.getElementById('page-view-issues');
 const pageAdd = document.getElementById('page-add-issue');
+
+// Edit Modal elements
+const editModal = document.getElementById('editModalOverlay');
+const editForm = document.getElementById('editForm');
+const closeEditModalBtn = document.getElementById('closeEditModal');
+const saveEditBtn = document.getElementById('saveEditBtn');
 
 // Delete modal elements
 const deleteModal = document.getElementById('deleteModalOverlay');
@@ -28,16 +34,13 @@ let issueIdToDelete = null;
  * @param {string} pageId - ID ของหน้าที่ต้องการแสดง
  */
 function showPage(pageId) {
-    // ซ่อนทุกหน้า
     document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
     document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
 
-    // แสดงหน้าที่เลือก
     if (pageId === 'page-add-issue') {
         document.getElementById(pageId).classList.add('active');
         navAdd.classList.add('active');
     } else {
-        // หน้าเริ่มต้นคือหน้าดูรายการ
         pageView.classList.add('active');
         navView.classList.add('active');
     }
@@ -62,6 +65,7 @@ function showStatus(message, isError = false) {
     statusMessage.textContent = message;
     statusMessage.className = isError ? 'error' : 'success';
     statusMessage.style.display = 'block';
+    window.scrollTo(0, 0); // Scroll to top to see message
     setTimeout(() => { statusMessage.style.display = 'none'; }, 4000);
 }
 
@@ -76,7 +80,6 @@ async function loadIssues() {
         
         const issues = await response.json();
         
-        // ตรวจสอบว่า response เป็น error object หรือไม่
         if (issues.result === 'error') {
             throw new Error(issues.message);
         }
@@ -91,7 +94,6 @@ async function loadIssues() {
         issues.forEach(issue => {
             const row = document.createElement('tr');
             
-            // Icon and Image Link
             let imageHtml = '';
             const iconSpan = `<span style="font-size: 1.6em; display: block; text-align: center;">${issue.icon || '📄'}</span>`;
             if (issue.ImageUrl && issue.ImageUrl.trim() !== '') {
@@ -100,7 +102,6 @@ async function loadIssues() {
                 imageHtml = iconSpan;
             }
 
-            // Status Dropdown
             const statusOptions = ['Open', 'In Progress', 'Closed'];
             let statusHtml = `<select class="status-dropdown" data-id="${issue.ID}">`;
             statusOptions.forEach(option => {
@@ -109,10 +110,11 @@ async function loadIssues() {
             });
             statusHtml += `</select>`;
 
-            // Action Buttons
             const actionsHtml = `
-                <button class="edit-btn" data-id="${issue.ID}" title="Edit">✏️</button>
-                <button class="delete-btn" data-id="${issue.ID}" title="Delete">🗑️</button>
+                <div class="action-buttons">
+                    <button class="edit-btn" data-id="${issue.ID}" title="Edit">✏️</button>
+                    <button class="delete-btn" data-id="${issue.ID}" title="Delete">🗑️</button>
+                </div>
             `;
 
             row.innerHTML = `
@@ -140,7 +142,7 @@ async function handleStatusUpdate(issueId, newStatus) {
     try {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify({ id: issueId, newStatus: newStatus }), 
+            body: JSON.stringify({ action: 'updateStatus', id: issueId, newStatus: newStatus }), 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
         const result = await response.json();
@@ -151,7 +153,7 @@ async function handleStatusUpdate(issueId, newStatus) {
         }
     } catch (error) {
         showStatus(`Error: ${error.message}`, true);
-        loadIssues(); // โหลดข้อมูลใหม่หากเกิดข้อผิดพลาด
+        loadIssues(); 
     }
 }
 
@@ -189,7 +191,7 @@ async function handleDelete() {
         const result = await response.json();
         if (result.result === 'success') {
             showStatus('Issue deleted successfully!');
-            loadIssues(); // โหลดข้อมูลใหม่
+            loadIssues();
         } else {
             throw new Error(result.message);
         }
@@ -199,6 +201,68 @@ async function handleDelete() {
         confirmDeleteBtn.disabled = false;
         confirmDeleteBtn.textContent = 'ยืนยันการลบ';
         closeDeleteDialog();
+    }
+}
+
+/**
+ * เปิดและเตรียมข้อมูลสำหรับหน้าต่างแก้ไข
+ */
+async function openEditModal(id) {
+    try {
+        const response = await fetch(`${SCRIPT_URL}?id=${id}`);
+        if (!response.ok) throw new Error('Failed to fetch issue details.');
+        const issue = await response.json();
+
+        if (issue.result === 'error') throw new Error(issue.message);
+
+        document.getElementById('editIssueId').value = issue.ID;
+        document.getElementById('editTitle').value = issue.Title;
+        document.getElementById('editDescription').value = issue.Description;
+        document.getElementById('editPriority').value = issue.Priority;
+        document.getElementById('editStatus').value = issue.Status;
+
+        editModal.style.display = 'flex';
+    } catch (error) {
+        showStatus(`Error opening edit form: ${error.message}`, true);
+    }
+}
+
+/**
+ * จัดการการบันทึกข้อมูลที่แก้ไข
+ */
+async function handleEditFormSubmit(event) {
+    event.preventDefault();
+    saveEditBtn.disabled = true;
+    saveEditBtn.textContent = 'Saving...';
+
+    const formData = new FormData(editForm);
+    const data = {
+        Title: formData.get('title'),
+        Description: formData.get('description'),
+        Priority: formData.get('priority'),
+        Status: formData.get('status')
+    };
+    const issueId = formData.get('id');
+
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'edit', id: issueId, data: data }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        if (result.result === 'success') {
+            showStatus('Issue updated successfully!');
+            editModal.style.display = 'none';
+            loadIssues();
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        showStatus(`Error saving changes: ${error.message}`, true);
+    } finally {
+        saveEditBtn.disabled = false;
+        saveEditBtn.textContent = 'Save Changes';
     }
 }
 
@@ -236,7 +300,7 @@ async function handleFormSubmit(event) {
         if (result.result === 'success') {
             showStatus('Issue added successfully!');
             form.reset();
-            showPage('page-view-issues'); // กลับไปหน้าดูรายการ
+            showPage('page-view-issues');
             loadIssues();
         } else {
             throw new Error(result.message || 'Unknown error occurred.');
@@ -252,39 +316,40 @@ async function handleFormSubmit(event) {
 
 // --- Event Listeners ---
 
-// โหลดข้อมูลเมื่อหน้าเว็บพร้อมใช้งาน
 document.addEventListener('DOMContentLoaded', () => {
-    showPage('page-view-issues'); // แสดงหน้าดูรายการเป็นหน้าแรก
+    showPage('page-view-issues');
     loadIssues();
 });
 
-// จัดการการส่งฟอร์ม
 form.addEventListener('submit', handleFormSubmit);
 
-// จัดการการคลิกในตาราง (สำหรับปุ่มแก้ไข, ลบ, และ dropdown)
 issueTableBody.addEventListener('click', (event) => {
-    const target = event.target;
-    if (target.classList.contains('delete-btn')) {
-        const id = target.dataset.id;
-        confirmDelete(id);
+    const editButton = event.target.closest('.edit-btn');
+    const deleteButton = event.target.closest('.delete-btn');
+
+    if (editButton) {
+        openEditModal(editButton.dataset.id);
     }
-    // TODO: Add logic for edit button here
+    if (deleteButton) {
+        confirmDelete(deleteButton.dataset.id);
+    }
 });
 
 issueTableBody.addEventListener('change', (event) => {
-    const target = event.target;
-    if (target.classList.contains('status-dropdown')) {
-        const id = target.dataset.id;
-        const newStatus = target.value;
-        handleStatusUpdate(id, newStatus);
+    if (event.target.classList.contains('status-dropdown')) {
+        handleStatusUpdate(event.target.dataset.id, event.target.value);
     }
 });
 
-// จัดการการคลิกปุ่มในหน้าต่างยืนยันการลบ
+// Edit Modal Listeners
+editForm.addEventListener('submit', handleEditFormSubmit);
+closeEditModalBtn.addEventListener('click', () => editModal.style.display = 'none');
+
+// Delete Modal Listeners
 closeDeleteModalBtn.addEventListener('click', closeDeleteDialog);
 cancelDeleteBtn.addEventListener('click', closeDeleteDialog);
 confirmDeleteBtn.addEventListener('click', handleDelete);
 
-// จัดการการคลิกเมนูนำทาง
+// Navigation Listeners
 navView.addEventListener('click', () => showPage('page-view-issues'));
 navAdd.addEventListener('click', () => showPage('page-add-issue'));
