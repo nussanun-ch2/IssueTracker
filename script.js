@@ -1,6 +1,5 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMxmfo8RYrg0rY3W33AaymHtsNazxj-kaSu0X1ZMHZlkwXgDeRivkVuLhNC6gZpeqP/exec'; 
-
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyf9AMDp_grZE4x0ILhVYkLvfSBlI7hay1s-vr0V3zGWTrinyTErqF2GTQcCBKgjGO3/exec';
 
 // --- DOM Elements ---
 const form = document.getElementById('issueForm');
@@ -9,12 +8,43 @@ const statusMessage = document.getElementById('status-message');
 const issueTableBody = document.getElementById('issueTableBody');
 const imageInput = document.getElementById('issueImage');
 
+// Page navigation elements
+const navView = document.getElementById('nav-view');
+const navAdd = document.getElementById('nav-add');
+const pageView = document.getElementById('page-view-issues');
+const pageAdd = document.getElementById('page-add-issue');
+
+// Delete modal elements
+const deleteModal = document.getElementById('deleteModalOverlay');
+const closeDeleteModalBtn = document.getElementById('closeDeleteModal');
+const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+let issueIdToDelete = null;
+
 // --- Functions ---
 
 /**
+ * ฟังก์ชันสลับหน้า
+ * @param {string} pageId - ID ของหน้าที่ต้องการแสดง
+ */
+function showPage(pageId) {
+    // ซ่อนทุกหน้า
+    document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
+    document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+
+    // แสดงหน้าที่เลือก
+    if (pageId === 'page-add-issue') {
+        document.getElementById(pageId).classList.add('active');
+        navAdd.classList.add('active');
+    } else {
+        // หน้าเริ่มต้นคือหน้าดูรายการ
+        pageView.classList.add('active');
+        navView.classList.add('active');
+    }
+}
+
+/**
  * ฟังก์ชันแปลงไฟล์เป็น Base64 string
- * @param {File} file - ไฟล์ที่ต้องการแปลง
- * @returns {Promise<string>}
  */
 function toBase64(file) {
     return new Promise((resolve, reject) => {
@@ -25,6 +55,9 @@ function toBase64(file) {
     });
 }
 
+/**
+ * แสดงข้อความสถานะ
+ */
 function showStatus(message, isError = false) {
     statusMessage.textContent = message;
     statusMessage.className = isError ? 'error' : 'success';
@@ -32,6 +65,9 @@ function showStatus(message, isError = false) {
     setTimeout(() => { statusMessage.style.display = 'none'; }, 4000);
 }
 
+/**
+ * โหลดข้อมูล Issues ทั้งหมดมาแสดงในตาราง
+ */
 async function loadIssues() {
     issueTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center;">🔄 Loading issues...</td></tr>`;
     try {
@@ -39,6 +75,12 @@ async function loadIssues() {
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         
         const issues = await response.json();
+        
+        // ตรวจสอบว่า response เป็น error object หรือไม่
+        if (issues.result === 'error') {
+            throw new Error(issues.message);
+        }
+
         issueTableBody.innerHTML = ''; 
 
         if (issues.length === 0) {
@@ -49,93 +91,120 @@ async function loadIssues() {
         issues.forEach(issue => {
             const row = document.createElement('tr');
             
-            // ส่วนแสดงผลรูปภาพ (เหมือนเดิม)
-            // ✨ ส่วนที่แก้ไขแล้ว
+            // Icon and Image Link
             let imageHtml = '';
-
-            // 1. สร้าง HTML ของไอคอนเก็บไว้ในตัวแปร ทำให้โค้ดสะอาดขึ้น
             const iconSpan = `<span style="font-size: 1.6em; display: block; text-align: center;">${issue.icon || '📄'}</span>`;
-
-            // 2. ตรวจสอบว่ามี URL รูปภาพหรือไม่
             if (issue.ImageUrl && issue.ImageUrl.trim() !== '') {
-                // 3. ถ้ามี: สร้างแท็กลิงก์ (<a>) ครอบไอคอน
                 imageHtml = `<a href="${issue.ImageUrl}" target="_blank" title="คลิกเพื่อดูรูปภาพ">${iconSpan}</a>`;
             } else {
-                // 4. ถ้าไม่มี: แสดงแค่ไอคอนอย่างเดียว (ไม่มีลิงก์)
                 imageHtml = iconSpan;
             }
 
-            // --- ✨ ส่วนใหม่: สร้าง Dropdown สำหรับ Status ---
+            // Status Dropdown
             const statusOptions = ['Open', 'In Progress', 'Closed'];
-
             let statusHtml = `<select class="status-dropdown" data-id="${issue.ID}">`;
             statusOptions.forEach(option => {
                 const isSelected = (option === issue.Status) ? 'selected' : '';
                 statusHtml += `<option value="${option}" ${isSelected}>${option}</option>`;
             });
             statusHtml += `</select>`;
-            // --- จบส่วนใหม่ ---
+
+            // Action Buttons
+            const actionsHtml = `
+                <button class="edit-btn" data-id="${issue.ID}" title="Edit">✏️</button>
+                <button class="delete-btn" data-id="${issue.ID}" title="Delete">🗑️</button>
+            `;
 
             row.innerHTML = `
                 <td>${imageHtml}</td>
                 <td>${issue.RequestBy || ''}</td>
                 <td>${issue.Title || ''}</td>
-                <td>${issue.Description || ''}</td>
                 <td><span class="priority-${issue.Priority}">${issue.Priority || ''}</span></td>
-                <td>${statusHtml}</td> <td>${issue.Timestamp || ''}</td>
+                <td>${statusHtml}</td>
+                <td>${issue.Timestamp || ''}</td>
+                <td>${actionsHtml}</td>
             `;
             issueTableBody.appendChild(row);
         });
 
     } catch (error) {
         console.error("Error loading issues:", error);
-        issueTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Failed to load issues. Please check the console.</td></tr>`;
+        issueTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">Failed to load issues: ${error.message}</td></tr>`;
     }
 }
 
 /**
- * จัดการการอัปเดตสถานะเมื่อ Dropdown ถูกเปลี่ยน
+ * จัดการการอัปเดตสถานะ
  */
-async function handleStatusUpdate(event) {
-    const selectElement = event.target;
-    const issueId = selectElement.dataset.id;
-    const newStatus = selectElement.value;
-
-    selectElement.disabled = true; // ปิดปุ่มชั่วคราวกันการกดซ้ำ
-
+async function handleStatusUpdate(issueId, newStatus) {
     try {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
-            // ส่งข้อมูลในรูปแบบที่ Apps Script ของเรารู้จัก
             body: JSON.stringify({ id: issueId, newStatus: newStatus }), 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        
         const result = await response.json();
-
         if (result.result === 'success') {
             showStatus(`Status updated to ${newStatus}`);
         } else {
             throw new Error(result.message);
         }
-
     } catch (error) {
         showStatus(`Error: ${error.message}`, true);
-        loadIssues(); // หากเกิดข้อผิดพลาด ให้โหลดข้อมูลใหม่ทั้งหมด
-    } finally {
-        selectElement.disabled = false; // เปิดปุ่มให้ใช้งานได้อีกครั้ง
+        loadIssues(); // โหลดข้อมูลใหม่หากเกิดข้อผิดพลาด
     }
 }
 
+/**
+ * เปิดหน้าต่างยืนยันการลบ
+ */
+function confirmDelete(id) {
+    issueIdToDelete = id;
+    deleteModal.style.display = 'flex';
+}
 
-// เพิ่ม Event Listener ให้กับตารางเพื่อดักจับการเปลี่ยนแปลงของ status-dropdown
-issueTableBody.addEventListener('change', (event) => {
-    // เช็กว่า element ที่ถูกเปลี่ยนคือ dropdown ของเราหรือไม่
-    if (event.target.classList.contains('status-dropdown')) {
-        handleStatusUpdate(event);
+/**
+ * ปิดหน้าต่างยืนยันการลบ
+ */
+function closeDeleteDialog() {
+    issueIdToDelete = null;
+    deleteModal.style.display = 'none';
+}
+
+/**
+ * จัดการการลบข้อมูล
+ */
+async function handleDelete() {
+    if (!issueIdToDelete) return;
+
+    confirmDeleteBtn.disabled = true;
+    confirmDeleteBtn.textContent = 'Deleting...';
+
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete', id: issueIdToDelete }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        if (result.result === 'success') {
+            showStatus('Issue deleted successfully!');
+            loadIssues(); // โหลดข้อมูลใหม่
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, true);
+    } finally {
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.textContent = 'ยืนยันการลบ';
+        closeDeleteDialog();
     }
-});
+}
 
+/**
+ * จัดการการส่งฟอร์มเพิ่ม Issue ใหม่
+ */
 async function handleFormSubmit(event) {
     event.preventDefault();
     submitButton.disabled = true;
@@ -144,10 +213,8 @@ async function handleFormSubmit(event) {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
-    // --- ส่วนจัดการไฟล์ ---
     const file = imageInput.files[0];
     if (file) {
-        // จำกัดขนาดไฟล์ไม่เกิน 5MB (ปรับแก้ได้)
         if (file.size > 5 * 1024 * 1024) {
             showStatus('Error: File size cannot exceed 5MB.', true);
             submitButton.disabled = false;
@@ -158,7 +225,6 @@ async function handleFormSubmit(event) {
         data.fileName = file.name;
         data.mimeType = file.type;
     }
-    // --- จบส่วนจัดการไฟล์ ---
 
     try {
         const response = await fetch(SCRIPT_URL, {
@@ -166,17 +232,15 @@ async function handleFormSubmit(event) {
             body: JSON.stringify(data),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        
         const result = await response.json();
-
         if (result.result === 'success') {
             showStatus('Issue added successfully!');
             form.reset();
+            showPage('page-view-issues'); // กลับไปหน้าดูรายการ
             loadIssues();
         } else {
             throw new Error(result.message || 'Unknown error occurred.');
         }
-
     } catch (error) {
         console.error("Error submitting form:", error);
         showStatus(`Error: ${error.message}`, true);
@@ -186,5 +250,41 @@ async function handleFormSubmit(event) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadIssues);
+// --- Event Listeners ---
+
+// โหลดข้อมูลเมื่อหน้าเว็บพร้อมใช้งาน
+document.addEventListener('DOMContentLoaded', () => {
+    showPage('page-view-issues'); // แสดงหน้าดูรายการเป็นหน้าแรก
+    loadIssues();
+});
+
+// จัดการการส่งฟอร์ม
 form.addEventListener('submit', handleFormSubmit);
+
+// จัดการการคลิกในตาราง (สำหรับปุ่มแก้ไข, ลบ, และ dropdown)
+issueTableBody.addEventListener('click', (event) => {
+    const target = event.target;
+    if (target.classList.contains('delete-btn')) {
+        const id = target.dataset.id;
+        confirmDelete(id);
+    }
+    // TODO: Add logic for edit button here
+});
+
+issueTableBody.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target.classList.contains('status-dropdown')) {
+        const id = target.dataset.id;
+        const newStatus = target.value;
+        handleStatusUpdate(id, newStatus);
+    }
+});
+
+// จัดการการคลิกปุ่มในหน้าต่างยืนยันการลบ
+closeDeleteModalBtn.addEventListener('click', closeDeleteDialog);
+cancelDeleteBtn.addEventListener('click', closeDeleteDialog);
+confirmDeleteBtn.addEventListener('click', handleDelete);
+
+// จัดการการคลิกเมนูนำทาง
+navView.addEventListener('click', () => showPage('page-view-issues'));
+navAdd.addEventListener('click', () => showPage('page-add-issue'));
