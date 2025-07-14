@@ -1,5 +1,5 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLp7mCMxiW0QHIheCMoqdIk5WY7HIhJXFYMkcUA-KEASzuuw2Oj4saWaUeCmLECs67/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzJ9Y78tIqeGBHQLOyLtxI7JkrYocvKiQro75eZeCZGh7blpW4u_kFcwugdlq2gWFyg/exec';
 
 // --- DOM Elements ---
 const form = document.getElementById('issueForm');
@@ -29,6 +29,31 @@ let issueIdToDelete = null;
 
 // --- Functions ---
 
+// --- ✨ START: User Identification Functions ---
+let currentUserName = '';
+
+/**
+ * ดึงชื่อผู้ใช้จาก Local Storage หรือถามผู้ใช้ถ้ายังไม่มี
+ */
+function initializeUser() {
+    let storedName = localStorage.getItem('issueTrackerUserName');
+    if (storedName) {
+        currentUserName = storedName;
+    } else {
+        // ถามชื่อผู้ใช้ในครั้งแรก
+        storedName = prompt("Please enter your name for 'Request By':", "");
+        if (storedName && storedName.trim() !== '') {
+            localStorage.setItem('issueTrackerUserName', storedName.trim());
+            currentUserName = storedName.trim();
+        } else {
+            // ถ้าผู้ใช้ไม่ใส่ชื่อ ก็ใช้ค่า default
+            currentUserName = 'Anonymous'; 
+        }
+    }
+}
+// --- ✨ END: User Identification Functions ---
+
+
 /**
  * ฟังก์ชันสลับหน้า
  * @param {string} pageId - ID ของหน้าที่ต้องการแสดง
@@ -40,6 +65,14 @@ function showPage(pageId) {
     if (pageId === 'page-add-issue') {
         document.getElementById(pageId).classList.add('active');
         navAdd.classList.add('active');
+
+        // --- ✨ START: เพิ่มโค้ดสำหรับใส่ชื่ออัตโนมัติ ---
+        const requestByInput = document.getElementById('RequestBy'); 
+        if (requestByInput) {
+            requestByInput.value = currentUserName;
+        }
+        // --- ✨ END: เพิ่มโค้ด ---
+
     } else {
         pageView.classList.add('active');
         navView.classList.add('active');
@@ -69,8 +102,48 @@ function showStatus(message, isError = false) {
     setTimeout(() => { statusMessage.style.display = 'none'; }, 4000);
 }
 
+
 /**
- * โหลดข้อมูล Issues ทั้งหมดมาแสดงในตาราง
+ * อัปเดตตัวเลือกใน Dropdown ของ Issue Type (สำหรับหน้า Add New)
+ * @param {string} selectedSystem - System ที่ถูกเลือก.
+ * @param {string} issueTypeDropdownId - ID ของ Dropdown ที่ต้องการอัปเดต.
+ */
+function updateIssueTypeOptions(selectedSystem, issueTypeDropdownId) {
+    const issueTypeSelect = document.getElementById(issueTypeDropdownId);
+    if (!issueTypeSelect) return;
+
+    const currentValue = issueTypeSelect.value;
+
+    
+    const optionsMap = {
+        'SACP': [ 'Calendar', 'Other'], // ไม่มี 'BI Report'
+        'SAC-BI&BW': ['BI Report', 'Other'],
+        'OTHER': ['Other'],
+        'default': ['Calendar', 'BI Report', 'Other']
+    };
+
+    const optionsToShow = optionsMap[selectedSystem] || optionsMap['default'];
+    
+    // ล้างตัวเลือกเก่า
+    issueTypeSelect.innerHTML = '<option value="">-- Select Type --</option>';
+
+    // สร้างตัวเลือกใหม่
+    optionsToShow.forEach(optionText => {
+        const option = document.createElement('option');
+        option.value = optionText;
+        option.textContent = optionText;
+        issueTypeSelect.appendChild(option);
+    });
+
+        if (optionsToShow.includes(currentValue)) {
+        issueTypeSelect.value = currentValue;
+    }
+}
+
+
+
+/**
+ * โหลดข้อมูล Issues ทั้งหมดมาแสดงในตาราง (เวอร์ชันแก้ไข)
  */
 async function loadIssues() {
     issueTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center;">🔄 Loading issues...</td></tr>`;
@@ -94,6 +167,13 @@ async function loadIssues() {
         issues.forEach(issue => {
             const row = document.createElement('tr');
             
+            const actionsHtml = `
+                <div class="action-buttons">
+                    <button class="edit-btn" data-id="${issue.ID}" title="Edit">✏️</button>
+                    <button class="delete-btn" data-id="${issue.ID}" title="Delete">🗑️</button>
+                </div>
+            `;
+
             let imageHtml = '';
             const iconSpan = `<span style="font-size: 1.6em; display: block; text-align: center;">${issue.icon || '📄'}</span>`;
             if (issue.ImageUrl && issue.ImageUrl.trim() !== '') {
@@ -110,13 +190,7 @@ async function loadIssues() {
             });
             statusHtml += `</select>`;
 
-            const actionsHtml = `
-                <div class="action-buttons">
-                    <button class="edit-btn" data-id="${issue.ID}" title="Edit">✏️</button>
-                    <button class="delete-btn" data-id="${issue.ID}" title="Delete">🗑️</button>
-                </div>
-            `;
-
+           
             row.innerHTML = `
                 <td>${imageHtml}</td>
                 <td>${issue.RequestBy || ''}</td>
@@ -124,14 +198,19 @@ async function loadIssues() {
                 <td>${issue.Description || ''}</td>
                 <td><span class="priority-${issue.Priority}">${issue.Priority || ''}</span></td>
                 <td>${statusHtml}</td>
-                <td>${issue.Timestamp || ''}</td>
+                <td>${issue.Timestamp || ''}</td> 
+                <td>${issue.IssueType || ''}</td>
+                <td>${issue.Year || ''}</td>
                 <td>${actionsHtml}</td>
+                <td>${issue.UpdatedBy || ''}</td>
+                <td>${issue.UpdatedAt ? new Date(issue.UpdatedAt).toLocaleString('th-TH') : ''}</td>
             `;
             issueTableBody.appendChild(row);
         });
 
     } catch (error) {
         console.error("Error loading issues:", error);
+        // ✨ [แก้ไข] เปลี่ยน colspan จาก 11 เป็น 8
         issueTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">Failed to load issues: ${error.message}</td></tr>`;
     }
 }
@@ -213,26 +292,62 @@ async function openEditModal(id) {
         const response = await fetch(`${SCRIPT_URL}?id=${id}`);
         if (!response.ok) throw new Error('Failed to fetch issue details.');
         const issue = await response.json();
-
-        // ✨ บรรทัดใหม่สำหรับ Debug: แสดงข้อมูลที่ได้รับใน Console
-        console.log("Fetched issue for edit:", issue);
-
         if (issue.result === 'error') throw new Error(issue.message);
 
+        // --- ส่วนที่ 1: ตั้งค่า System และ Version ---
+        const editSystemSelect = document.getElementById('editSystemSelect');
+        const editVersionContainer = document.getElementById('editVersionContainer');
+        const editVersionSelect = document.getElementById('editVersionSelect');
+        
+        editSystemSelect.value = issue.System || '';
+        if (issue.System === 'SACP') {
+            editVersionContainer.style.display = 'block';
+            editVersionSelect.required = true;
+            editVersionSelect.value = issue.Version || '';
+        } else {
+            editVersionContainer.style.display = 'none';
+            editVersionSelect.required = false;
+            editVersionSelect.value = '';
+        }
+
+        // --- ส่วนที่ 2: อัปเดตตัวเลือก IssueType ตาม System ที่ได้มา ---
+        updateIssueTypeOptions(issue.System, 'editIssueType');
+
+        // --- ส่วนที่ 3: ใส่ค่าทั้งหมดลงในฟอร์มให้ถูกต้อง ---
         document.getElementById('editIssueId').value = issue.ID;
-        document.getElementById('editTitle').value = issue.Title;
-        document.getElementById('editDescription').value = issue.Description;
-        document.getElementById('editPriority').value = issue.Priority;
-        document.getElementById('editStatus').value = issue.Status;
+        document.getElementById('editImageUrl').value = issue.ImageUrl || ''; // ใส่ค่า ImageUrl เดิมในช่องที่ซ่อนไว้
+        document.getElementById('editRequestBy').value = issue.RequestBy || ''; // ✨ แก้ไข R เป็น r
+        document.getElementById('editIssueCategory').value = issue.IssueCategory || '';
+        document.getElementById('editTitle').value = issue.Title || '';
+        document.getElementById('editDescription').value = issue.Description || '';
+        document.getElementById('editPriority').value = issue.Priority || 'Low';
+
+        document.getElementById('editStatus').value = issue.Status || 'Open';
+        
+
+        document.getElementById('editIssueType').value = issue.IssueType || '';
+        document.getElementById('editYear').value = issue.Year || '';
+        
+       
+        
+        // --- ส่วนที่ 4: แสดงชื่อไฟล์เดิม ---
+        const currentFileDisplay = document.getElementById('currentFileDisplay');
+        if (issue.ImageUrl) {
+            currentFileDisplay.innerHTML = `Current file: <a href="${issue.ImageUrl}" target="_blank">${issue.FileName || 'View File'}</a>`;
+        } else {
+            currentFileDisplay.innerHTML = 'No file attached.';
+        }
+        document.getElementById('editIssueImage').value = '';
 
         editModal.style.display = 'flex';
     } catch (error) {
         showStatus(`Error opening edit form: ${error.message}`, true);
+        console.error("Detailed error in openEditModal:", error);
     }
 }
 
 /**
- * จัดการการบันทึกข้อมูลที่แก้ไข
+ * จัดการการบันทึกข้อมูลที่แก้ไข (เวอร์ชันปรับปรุง)
  */
 async function handleEditFormSubmit(event) {
     event.preventDefault();
@@ -240,13 +355,55 @@ async function handleEditFormSubmit(event) {
     saveEditBtn.textContent = 'Saving...';
 
     const formData = new FormData(editForm);
-    const data = {
-        Title: formData.get('title'),
-        Description: formData.get('description'),
-        Priority: formData.get('priority'),
-        Status: formData.get('status')
-    };
-    const issueId = formData.get('id');
+    
+    // ✨ [แก้ไข] รวบรวมข้อมูลทั้งหมดจากฟอร์มโดยอัตโนมัติ
+    const data = Object.fromEntries(formData.entries());
+    
+    // แยก issueId ออกมาเก็บไว้ต่างหาก
+    const issueId = data.id; 
+    
+    // ลบ key 'id' ออกจาก object ที่จะส่งไป, เพราะเราจะส่ง id แยกไปแล้ว
+    delete data.id;
+
+   // ✨ START: เพิ่มส่วนจัดการไฟล์ที่อัปโหลดใหม่เข้ามา
+    const fileInput = document.getElementById('editIssueImage');
+    const file = fileInput.files[0];
+    if (file) { // ตรวจสอบว่ามีการเลือกไฟล์ใหม่หรือไม่
+        if (file.size > 5 * 1024 * 1024) { // ตรวจสอบขนาดไฟล์
+            showStatus('Error: File size cannot exceed 5MB.', true);
+            saveEditBtn.disabled = false;
+            saveEditBtn.textContent = 'Save Changes';
+            return;
+        }
+        // แปลงไฟล์เป็น Base64 แล้วแนบไปกับข้อมูล
+        data.fileData = await toBase64(file);
+        data.fileName = file.name;
+        data.mimeType = file.type;
+    }
+    delete data.issueImage; // ลบ property ที่ไม่จำเป็นออก
+    // ✨ END: ส่วนจัดการไฟล์ใหม่
+
+    // --- ✨ START: จัดการเงื่อนไข System และ Version ---
+    if (data.system === 'SACP') {
+         // ถ้าเลือก System เป็น SACP, ต้องเลือก Version ด้วย
+        if (!data.version) {
+            showStatus('Error: Please select a Version for SACP system.', true);
+            saveEditBtn.disabled = false;
+            saveEditBtn.textContent = 'Save Changes';
+            return; // หยุดการทำงานของฟังก์ชัน
+        }
+         // ✨ เพิ่มใหม่: ถ้าเลือก SACP, ห้ามเลือก Issue Type เป็น 'BI Report'
+        if (data.issueType === 'BI Report') {
+            showStatus('Error: "BI Report" is not a valid Issue Type for the SACP system.', true);
+            saveEditBtn.disabled = false;
+            saveEditBtn.textContent = 'Save Changes';
+            return;
+        }
+    } else {
+        // ถ้าไม่ได้เลือก SACP, ให้ลบค่า version ทิ้งไปเลย
+         delete data.version;
+    }
+    // --- ✨ END: จัดการเงื่อนไข ---
 
     try {
         const response = await fetch(SCRIPT_URL, {
@@ -280,6 +437,25 @@ async function handleFormSubmit(event) {
 
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+    // --- ✨ START: เพิ่มการตรวจสอบเงื่อนไขสำหรับฟอร์ม Add New ---
+    if (data.system === 'SACP') 
+    {
+        if (!data.version) {
+            showStatus('Error: Please select a Version for SACP system.', true);
+            submitButton.disabled = false;
+            submitButton.textContent = 'Add Issue';
+            return;
+        }
+        if (data.issueType === 'BI Report') {
+            showStatus('Error: "BI Report" is not a valid Issue Type for the SACP system.', true);
+            submitButton.disabled = false;
+            submitButton.textContent = 'Add Issue';
+            return;
+        }
+    } else {
+        delete data.version;
+    }
+    // --- ✨ END: เพิ่มการตรวจสอบเงื่อนไข ---
 
     const file = imageInput.files[0];
     if (file) {
@@ -320,9 +496,43 @@ async function handleFormSubmit(event) {
 
 // --- Event Listeners ---
 
+// --- Event Listeners ---
+
 document.addEventListener('DOMContentLoaded', () => {
-    showPage('page-view-issues');
-    loadIssues();
+    initializeUser(); // เรียกใช้ฟังก์ชันดึงชื่อผู้ใช้
+
+    // --- ✨ START: โค้ดควบคุม Dependent Dropdown ---
+    // ส่วนที่ 1: ควบคุมฟอร์ม "Add New Issue"
+    const systemSelect = document.getElementById('system-select');
+    if (systemSelect) {
+        systemSelect.addEventListener('change', function() {
+            if (this.value === 'SACP') {
+                document.getElementById('version-container').style.display = 'block';
+            } else {
+                document.getElementById('version-container').style.display = 'none';
+            }
+            updateIssueTypeOptions(this.value, 'issueType'); // ✨ เรียกใช้ฟังก์ชันใหม่
+        });
+    }
+
+    // ส่วนที่ 2: ควบคุมฟอร์ม "Edit Modal"
+    const editSystemSelect = document.getElementById('editSystemSelect');
+    if (editSystemSelect) {
+        editSystemSelect.addEventListener('change', function() {
+            if (this.value === 'SACP') {
+                document.getElementById('editVersionContainer').style.display = 'block';
+            } else {
+                document.getElementById('editVersionContainer').style.display = 'none';
+            }
+            updateIssueTypeOptions(this.value, 'editIssueType'); // ✨ เรียกใช้ฟังก์ชันใหม่
+        });
+    }
+    // --- ✨ END: โค้ดควบคุม ---
+
+
+    // --- โหลดหน้าแรกและข้อมูล (ตัดส่วนที่ซ้ำซ้อนออก) ---
+    showPage('page-view-issues'); // แสดงหน้าตารางเป็นหน้าแรก
+    loadIssues(); // โหลดข้อมูลมาแสดง
 });
 
 form.addEventListener('submit', handleFormSubmit);

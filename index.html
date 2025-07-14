@@ -6,7 +6,7 @@
     <title>Issue Tracker</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f9; color: #333; margin: 0; padding: 2rem; }
-        .container { max-width: 1000px; margin: auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .container { max-width: 2000px; margin: auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h1, h2 { color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
         form { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 2rem; }
         input, select, textarea, button { padding: 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
@@ -23,6 +23,8 @@
         th, td { text-align: left; padding: 0.8rem; border-bottom: 1px solid #e2e8f0; vertical-align: middle;}
         th { background-color: #edf2f7; }
         tbody tr:hover { background-color: #f7fafc; }
+        
+ 
         .priority-High { background-color: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }
         .priority-Medium { background-color: #feebc8; padding: 0.2rem 0.5rem; border-radius: 4px; }
         .priority-Low { background-color: #c6f6d5; padding: 0.2rem 0.5rem; border-radius: 4px; }
@@ -34,6 +36,31 @@
         .nav-button.active { background-color: #4299e1; color: white; }
         .page-section { display: none; /* ซ่อนทุกหน้าไว้ก่อน */ }
         .page-section.active { display: block; /* แสดงเฉพาะหน้าที่มี class active */ }
+
+        .col-title,
+        .col-description {
+            word-break: break-word; /* ทำให้คำยาวๆ ตัดขึ้นบรรทัดใหม่ได้ */
+        }
+        .col-title 
+        {
+            width: 25%; /* กำหนดความกว้างเป็นเปอร์เซ็นต์ */
+            min-width: 200px; /* กำหนดความกว้างขั้นต่ำ */
+        }
+        .col-description 
+        {
+            width: 55%;
+            min-width: 250px;
+        }
+        .col-SubmittedAt
+        {
+            width: 5%;
+            min-width: 60px;
+        }
+        .col-Action
+        {
+            width: 10%;
+            min-width: 80px;
+        }
 
         /* Modal Styles */
         .modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
@@ -62,19 +89,23 @@
             <div id="table-container" style="overflow-x: auto;">
                 <table>
                     <thead>
-                        <tr>
-                            <th>Image</th>
+                        <tr>                            
+                            <th>Pic</th> 
                             <th>RequestBy</th> 
-                            <th>Title</th>
-                            <th>Description</th>
+                            <th class="col-title">Title</th>
+                            <th class="col-description">Description</th>
                             <th>Priority</th>
                             <th>Status</th>
-                            <th>Submitted At</th>
-                            <th>Actions</th>
+                            <th class="col-SubmittedAt">Submitted At</th>  
+                            <th>Issue Type</th>
+                            <th>Year</th>  
+                            <th class="col-Action">Actions</th>
+                            <th>UpdatedBy</th> 
+                            <th>UpdatedAt</th>          
                         </tr>
                     </thead>
                     <tbody id="issueTableBody">
-                        <tr><td colspan="8" style="text-align: center;">Loading issues...</td></tr>
+                        <tr><td colspan="12" style="text-align: center;">Loading issues...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -84,16 +115,16 @@
         <div id="page-add-issue" class="page-section">
             <form id="issueForm">
                 <h2>Add New Issue</h2>
-                <label for="RequestBy">Name</label>
-                <input type="text" id="RequestBy" name="RequestBy" placeholder="ให้ใส่เป็น ชื่อ.นามสกุล(1หรือ2ตัว) Ex. Nussanun.ch" required>
+                <label for="requestby">Name</label>
+                <input type="text" id="requestby" name="requestby" placeholder="ให้ใส่เป็น ชื่อ.นามสกุล(1หรือ2ตัว) Ex. Nussanun.ch" required>
                 
-                <label for="category">Category</label>
-                <select id="category" name="category" required>
-                    <option value="Bug" selected>Bug</option>
+                <label for="category">Issue Category : ถ้ายังไม่ทราบให้เลือก Question</label>
+                <select id="addIssueType" name="category" required>
+                    <option value="Question"selected>Question</option>
+                    <option value="Bug">Bug</option>
                     <option value="Human Error">Human Error</option>
                     <option value="Process or Method">Process or Method</option>
-                    <option value="Feature">Feature Request</option>
-                    <option value="Question">Question</option>
+                    <option value="Feature">Feature Request</option>                    
                 </select>
 
                 <label for="title">Issue Title</label>
@@ -103,6 +134,43 @@
                 <textarea id="description" name="description" placeholder="ระบุรายละเอียด"></textarea>
                 <input type="file" id="issueImage" name="issueImage" accept="image/*">
 
+                <label for="system-select">System</label>
+                <select id="system-select" name="system" required>
+                    <option value="">-- Please choose an option --</option>
+                    <option value="SACP">SACP</option>
+                    <option value="SAC-BI&BW">SAC-BI&BW</option>
+                    <option value="OTHER">Other</option>
+                </select>
+                
+                <div id="version-container" style="display: none;">
+                    <label for="version-select">Version</label>
+                    <select id="version-select" name="version">
+                        <option value="AOP">AOP</option>
+                        <option value="FCST_Jan(0+12)">FCST_Jan(0+12)</option>
+                        <option value="FCST_Feb(1+11)">FCST_Feb(1+11)</option>
+                        <option value="FCST_Mar(2+10)">FCST_Mar(2+10)</option>
+                        <option value="FCST_Apr(3+9)">FCST_Apr(3+9)</option>
+                        <option value="FCST_May(4+8)">FCST_May(4+8)</option>
+                        <option value="FCST_Jun(5+7)">FCST_Jun(5+7)</option>
+                        <option value="FCST_Jul(6+6)">FCST_Jul(6+6)</option>
+                        <option value="FCST_Aug(7+5)">FCST_Aug(7+5)</option>
+                        <option value="FCST_Sep(8+4)">FCST_Sep(8+4)</option>
+                        <option value="FCST_Oct(9+3)">FCST_Oct(9+3)</option>
+                        <option value="FCST_Nov(10+2)">FCST_Nov(10+2)</option>
+                        <option value="FCST_Dec(11+1)">FCST_Dec(11+1)</option>
+                    </select>
+                </div>
+
+                <label for="issueType">Issue Type</label>
+                <select id="issueType" name="issueType" required>
+                    <option value="">-- Select Type --</option>
+                    <option value="BI Report">BI Report</option>
+                    <option value="Calendar">Calendar</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                <label for="year">Year</label>
+                <input type="number" id="year" name="year" placeholder="YYYY" required>    
                 <div style="display: flex; gap: 1rem;">
                     <div style="flex: 1;">
                         <label for="priority">Priority</label>
@@ -131,19 +199,74 @@
             <div class="modal-content">
                 <span id="closeEditModal" class="close-btn">&times;</span>
                 <h2>Edit Issue</h2>
-                <form id="editForm" style="text-align: left;">
+                <form id="editForm">
                     <input type="hidden" id="editIssueId" name="id">
-                    <div>
-                        <label for="editTitle">Title</label>
-                        <input type="text" id="editTitle" name="title" required>
+                    <input type="hidden" id="editImageUrl" name="imageUrl"> <label for="editRequestBy">Name:</label>
+                    <input type="text" id="editRequestBy" name="requestBy" required>
+
+                    <label for="editIssueCategory">Issue Category:</label>
+                    <select id="editIssueCategory" name="issueCategory" required>
+                        <option value="">-- Select Category --</option>
+                        <option value="Question">Question</option>
+                        <option value="Bug">Bug</option>
+                        <option value="Human Error">Human Error</option>
+                        <option value="Process or Method">Process or Method</option>
+                        <option value="Feature">Feature Request</option>
+                    </select>
+
+                    <label for="editTitle">Issue Title:</label>
+                    <input type="text" id="editTitle" name="title" required>
+
+                    <label for="editDescription">Description:</label>
+                    <textarea id="editDescription" name="description" rows="4"></textarea>
+
+                    <label for="editSystemSelect">System:</label>
+                    <select id="editSystemSelect" name="system">
+                        <option value="">-- Select System --</option>
+                        <option value="SACP">SACP</option>
+                        <option value="SAC-BI&BW">SAC-BI&BW</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+
+                    <div id="editVersionContainer" style="display: none;">
+                        <label for="editVersionSelect">Version:</label>
+                        <select id="editVersionSelect" name="version">
+                            <option value="">-- Select Version --</option>
+                            <option value="AOP">AOP</option>
+                            <option value="FCST_Jan(0+12)">FCST_Jan(0+12)</option>
+                            <option value="FCST_Feb(1+11)">FCST_Feb(1+11)</option>
+                            <option value="FCST_Mar(2+10)">FCST_Mar(2+10)</option>
+                            <option value="FCST_Apr(3+9)">FCST_Apr(3+9)</option>
+                            <option value="FCST_May(4+8)">FCST_May(4+8)</option>
+                            <option value="FCST_Jun(5+7)">FCST_Jun(5+7)</option>
+                            <option value="FCST_Jul(6+6)">FCST_Jul(6+6)</option>
+                            <option value="FCST_Aug(7+5)">FCST_Aug(7+5)</option>
+                            <option value="FCST_Sep(8+4)">FCST_Sep(8+4)</option>
+                            <option value="FCST_Oct(9+3)">FCST_Oct(9+3)</option>
+                            <option value="FCST_Nov(10+2)">FCST_Nov(10+2)</option>
+                            <option value="FCST_Dec(11+1)">FCST_Dec(11+1)</option>
+                        </select>
                     </div>
-                    <div>
-                        <label for="editDescription">Description</label>
-                        <textarea id="editDescription" name="description"></textarea>
-                    </div>
+
+                    <label for="editIssueType">Issue Type</label>
+                    <select id="editIssueType" name="issueType" required>
+                        <option value="">-- Select Type --</option>
+                        <option value="BI Report">BI Report</option>
+                        <option value="Calendar">Calendar</option>
+                        <option value="Other">Other</option>
+                    </select>
+
+                    <label for="editYear">Year</label>
+                    <input type="number" id="editYear" name="year" placeholder="YYYY" required>
+
+                    <label for="editIssueImage">Upload New File (Optional):</label>
+                    <div id="currentFileDisplay"></div> 
+                    <input type="file" id="editIssueImage" name="issueImage" accept="image/*">
+                    <small>แนบไฟล์ใหม่เพื่อทับไฟล์เดิม (ถ้ามี)</small>
+
                     <div style="display: flex; gap: 1rem;">
                         <div style="flex: 1;">
-                            <label for="editPriority">Priority</label>
+                            <label for="editPriority">Priority:</label>
                             <select id="editPriority" name="priority" required>
                                 <option value="High">High</option>
                                 <option value="Medium">Medium</option>
@@ -151,7 +274,7 @@
                             </select>
                         </div>
                         <div style="flex: 1;">
-                            <label for="editStatus">Status</label>
+                            <label for="editStatus">Status:</label>
                             <select id="editStatus" name="status" required>
                                 <option value="Open">Open</option>
                                 <option value="In Progress">In Progress</option>
@@ -159,7 +282,19 @@
                             </select>
                         </div>
                     </div>
-                    <button type="submit" id="saveEditBtn">Save Changes</button>
+                    
+                    <div style="display: flex; gap: 1rem; margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1rem; text-align: left;">
+                        <div style="flex: 1;">
+                            <label for="editUpdatedBy">Last Updated By:</label>
+                            <input type="text" id="editUpdatedBy" name="updatedBy" disabled>
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="editUpdatedAt">Last Updated At:</label>
+                            <input type="text" id="editUpdatedAt" name="updatedAt" disabled>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="saveEditBtn" class="submit-button">Save Changes</button>
                 </form>
             </div>
         </div>
