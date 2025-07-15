@@ -1,5 +1,6 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzJ9Y78tIqeGBHQLOyLtxI7JkrYocvKiQro75eZeCZGh7blpW4u_kFcwugdlq2gWFyg/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxl54mjafJ121cAYXEAmbACg8WiXcLyrnM9HF5Zi0QjLbESeeHOrnSC7pHH-1sw077h/exec';
+
 
 // --- DOM Elements ---
 const form = document.getElementById('issueForm');
