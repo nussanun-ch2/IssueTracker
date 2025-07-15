@@ -1,5 +1,5 @@
 // วาง URL ของเว็บแอปที่คุณคัดลอกมาจาก Google Apps Script ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxl54mjafJ121cAYXEAmbACg8WiXcLyrnM9HF5Zi0QjLbESeeHOrnSC7pHH-1sw077h/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw97OnZ08jkyXwAdiE56Al4Gs7Ch2mDi3l6YEoiWjinf3XLCdoG7P1ew_9b3sSzzPO8/exec';
 
 
 // --- DOM Elements ---
